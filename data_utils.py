@@ -2,6 +2,7 @@ import os
 import re
 import unicodedata
 import hashlib
+
 from typing import Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ import numpy as np
 import pandas as pd
 import spacy
 import tiktoken
+
 
 CONFIG = {
     "train_path": "train.csv",
@@ -95,6 +97,7 @@ def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
         text = re.sub(r"\b[A-Z][a-z]+ [A-Z][a-z]+\b", replace_defendant, text)
 
     return text, name_map
+
 
 def _read_dataframe(path: str) -> pd.DataFrame:
     if path.endswith(".csv"):
@@ -201,6 +204,7 @@ def drop_near_duplicates(
     df_dedup = df_train.drop(index=drop_idx).reset_index(drop=True)
     return df_dedup, drop_map
 
+
 def load_dataframes(
     df_train: Optional[pd.DataFrame] = None,
     df_val: Optional[pd.DataFrame] = None,
@@ -208,6 +212,7 @@ def load_dataframes(
     config: Optional[Dict[str, str]] = None,
     dup_threshold: float = 0.9,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[int, int]]:
+
     cfg = CONFIG if config is None else config
     if df_train is None:
         df_train = _read_dataframe(cfg["train_path"])
@@ -228,6 +233,7 @@ def load_dataframes(
         df_train, df_val, df_test, threshold=dup_threshold
     )
 
+
     for name, df in [("df_train", df_train), ("df_val", df_val), ("df_test", df_test)]:
         print(
             f"{name} cleaned samples:\n"
@@ -235,6 +241,7 @@ def load_dataframes(
         )
 
     return df_train, df_val, df_test, dropped_map
+
 
 
 def analyze_datasets(
@@ -299,6 +306,7 @@ def analyze_datasets(
             print(f"Jaccard({s1},{s2}) for {col}: {score:.3f}")
 
 
+
 if __name__ == "__main__":
     sample = {
         "doc_id": [1, 2, 3],
@@ -312,6 +320,7 @@ if __name__ == "__main__":
             "The issue involved Jane Roe's liability.",
             "Justice Bob Jones delivered the holding.",
         ],
+
     }
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
@@ -319,3 +328,4 @@ if __name__ == "__main__":
     t, v, te, dropped = load_dataframes(df_t, df_v, df_te)
     print(f"Dropped map: {dropped}")
     analyze_datasets(t, v, te)
+

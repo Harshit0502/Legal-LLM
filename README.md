@@ -13,6 +13,7 @@ The script installs required libraries, downloads the `en_core_web_sm` spaCy mod
 necessary, displays CUDA/CPU details, defines a `set_seed` helper, and sets the default
 seed to `42` for reproducibility.
 
+
 ## Loading training data
 
 Use `data_utils.load_dataframes` to ensure your datasets meet the expected schema. It
@@ -24,6 +25,7 @@ numbers, and optionally anonymize names. Near-duplicate `text_clean` entries in 
 are removed using a SimHash similarity threshold of `0.9` to prevent leakage against
 `df_val` and `df_test`. A mapping of dropped indices to `doc_id` is returned.
 
+
 ```python
 from data_utils import load_dataframes
 
@@ -33,6 +35,7 @@ df_train, df_val, df_test, dropped = load_dataframes(df_train, df_val, df_test)
 # Option 2: read from paths defined in CONFIG
 df_train, df_val, df_test, dropped = load_dataframes()
 print("Dropped duplicates:", dropped)
+
 print(df_train[["text", "text_clean"]].head())
 ```
 
@@ -49,4 +52,5 @@ from data_utils import analyze_datasets
 
 df_train, df_val, df_test, dropped = load_dataframes()
 analyze_datasets(df_train, df_val, df_test)
+
 ```
