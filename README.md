@@ -113,3 +113,30 @@ print(metrics)
 
 `evaluate_baselines` returns aggregated ROUGE-1/2/L and BERTScore metrics for the two
 baselines.
+
+## Fine-tuning models
+
+`finetune.py` offers a simple utility to fine-tune instruction models with either LoRA adapters or full parameter updates. Supported backbones include `mistralai/Mistral-7B-Instruct-v0.3`, `meta-llama/Meta-Llama-3-8B-Instruct`, and `Qwen2.5-7B-Instruct`.
+
+The helper loads a model and tokenizer, masks out prompt tokens with `-100` for supervised fine-tuning, and can optionally pack multiple examples into fixed-length sequences for efficiency. LoRA uses `r=16`, `alpha=32`, and `dropout=0.05`. When `load_in_4bit=True`, the model is prepared for QLoRA training via `prepare_model_for_kbit_training`.
+
+Example usage:
+
+```python
+from datasets import Dataset
+from finetune import train
+
+# df is a DataFrame with columns: doc_id, prompt, target
+hf_ds = Dataset.from_pandas(df)
+train(
+    hf_ds,
+    model_name="mistralai/Mistral-7B-Instruct-v0.3",
+    output_dir="mistral_lora",
+    use_lora=True,
+    load_in_4bit=True,
+    gradient_accumulation_steps=4,
+)
+```
+
+`TrainingArguments` expose common knobs such as `gradient_accumulation_steps`, `lr_scheduler_type`, and `save_strategy='epoch'`.
+
