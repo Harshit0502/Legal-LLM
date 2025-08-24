@@ -239,3 +239,22 @@ Use the `--demo` flag for a minimal run:
 ```bash
 python faithfulness.py --demo
 ```
+
+## API serving and batch inference
+
+Run the FastAPI app to expose summarization and retrieval-augmented QA endpoints:
+
+```bash
+uvicorn app:app --reload
+```
+
+- `POST /summarize` accepts `{"text": "..."}` and returns `{"summary": "...", "citations": []}`.
+- `POST /qa` accepts `{"question": "..."}` and returns an answer with a list of `doc_id:chunk_id` citations.
+
+For offline processing of the canonical test split, use `batch_infer.py`:
+
+```bash
+python batch_infer.py --model out/legal-llm-sft --output predictions.csv
+```
+
+The script loads the test DataFrame via `load_dataframes`, runs the summarization model on each `text_clean`, and writes the results to a CSV file.
