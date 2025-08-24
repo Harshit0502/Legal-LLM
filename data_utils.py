@@ -1,11 +1,96 @@
+import re
+import unicodedata
+from typing import Dict, Optional, Tuple
+
 import pandas as pd
-from typing import Optional, Tuple, Dict
+
 
 CONFIG = {
     "train_path": "train.csv",
     "val_path": "val.csv",
     "test_path": "test.csv",
 }
+
+
+def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
+    """Return normalized text and a mapping of anonymized names.
+
+    Parameters
+    ----------
+    x : str
+        Input string to clean.
+    anonymize : bool, optional
+        Whether to replace detected names with placeholders, by default True.
+
+    Returns
+    -------
+    Tuple[str, Dict[str, str]]
+        The cleaned text and a mapping from placeholder to original name.
+    """
+
+    if not isinstance(x, str):
+        return x, {}
+
+    text = unicodedata.normalize("NFKC", x)
+
+    # Standardize quotes, dashes and bullet symbols
+    replacements = {
+        "“": '"',
+        "”": '"',
+        "‘": "'",
+        "’": "'",
+        "—": "-",
+        "–": "-",
+        "−": "-",
+        "•": "-",
+        "·": "-",
+    }
+    for src, tgt in replacements.items():
+        text = text.replace(src, tgt)
+
+    # Remove page numbers, line numbers, and simple header/footer patterns
+    text = re.sub(r"\bPage\s+\d+(?:\s+of\s+\d+)?\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^\s*\d+\s*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"(?m)^(?:Header|Footer):.*$", "", text)
+
+    # Normalize whitespace and collapse multiple newlines
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"\n{2,}", "\n\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = text.strip()
+
+    name_map: Dict[str, str] = {}
+    if anonymize:
+        judge_idx = 1
+        def_idx = 1
+
+        def replace_judge(match: re.Match) -> str:
+            nonlocal judge_idx
+            name = match.group(1)
+            placeholder = f"JUDGE_{judge_idx}"
+            judge_idx += 1
+            name_map[placeholder] = name
+            return placeholder
+
+        def replace_defendant(match: re.Match) -> str:
+            nonlocal def_idx
+            name = match.group(0)
+            placeholder = f"DEFENDANT_{def_idx}"
+            def_idx += 1
+            name_map[placeholder] = name
+            return placeholder
+
+        # Replace judges/justices first to avoid double replacement
+        text = re.sub(
+            r"(?:Judge|Justice) ([A-Z][a-z]+ [A-Z][a-z]+)",
+            replace_judge,
+            text,
+        )
+        # Replace remaining capitalized first+last names
+        text = re.sub(r"\b[A-Z][a-z]+ [A-Z][a-z]+\b", replace_defendant, text)
+
+    return text, name_map
+
 
 def _read_dataframe(path: str) -> pd.DataFrame:
     if path.endswith(".csv"):
@@ -32,6 +117,16 @@ def _validate_dataframe(df: pd.DataFrame, name: str) -> None:
     print(f"{name} examples:\n{df.head(2)}\n")
 
 
+def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Add cleaned text and summary columns to a copy of ``df``."""
+
+    df = df.copy()
+    df["text_clean"], df["text_map"] = zip(*df["text"].map(clean_text))
+    df["summary_clean"], df["summary_map"] = zip(*df["summary"].map(clean_text))
+    return df
+
+
+
 def load_dataframes(
     df_train: Optional[pd.DataFrame] = None,
     df_val: Optional[pd.DataFrame] = None,
@@ -50,14 +145,32 @@ def load_dataframes(
     _validate_dataframe(df_val, "df_val")
     _validate_dataframe(df_test, "df_test")
 
+    df_train = _clean_dataframe(df_train)
+    df_val = _clean_dataframe(df_val)
+    df_test = _clean_dataframe(df_test)
+
+    for name, df in [("df_train", df_train), ("df_val", df_val), ("df_test", df_test)]:
+        print(
+            f"{name} cleaned samples:\n"
+            f"{df[['text', 'text_clean', 'summary', 'summary_clean']].head(3)}\n"
+        )
     return df_train, df_val, df_test
 
 
 if __name__ == "__main__":
     sample = {
-        "doc_id": [1, 2],
-        "text": ["Example text", "Another text"],
-        "summary": ["Summary one", "Summary two"],
+        "doc_id": [1, 2, 3],
+        "text": [
+            "FACTS: Judge Alice Smith heard the case. Page 1\nJohn Doe appeared.",
+            "ISSUE: Whether — given the evidence — the defendant Jane Roe was liable.",
+            "HELD: Justice Bob Jones concluded the matter on page 2.",
+        ],
+        "summary": [
+            "Judge Alice Smith summarized the facts.",
+            "The issue involved Jane Roe's liability.",
+            "Justice Bob Jones delivered the holding.",
+        ],
+
     }
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
