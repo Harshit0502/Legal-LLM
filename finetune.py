@@ -54,6 +54,123 @@ def load_model_and_tokenizer(model_name: str,
 
     return model, tokenizer
 
+def tokenize_text(example: Dict, tokenizer, max_length: int) -> Dict:
+    ids = tokenizer.encode(example["text_clean"], add_special_tokens=False)
+    ids = ids[:max_length]
+    return {"input_ids": ids, "labels": ids}
+
+
+class LMConstantLengthDataset(torch.utils.data.Dataset):
+    """Pack text-only examples for causal LM training."""
+
+    def __init__(self, dataset, tokenizer, seq_length: int):
+        eos = tokenizer.eos_token_id
+        self.examples = []
+        buffer = []
+        for ex in dataset:
+            buffer.extend(ex["input_ids"] + [eos])
+            while len(buffer) >= seq_length:
+                chunk = buffer[:seq_length]
+                self.examples.append(
+                    {
+                        "input_ids": torch.tensor(chunk),
+                        "labels": torch.tensor(chunk),
+                        "attention_mask": torch.ones(seq_length, dtype=torch.long),
+                    }
+                )
+                buffer = buffer[seq_length:]
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx):
+        return self.examples[idx]
+
+
+def build_dapt_dataset(ds: Dataset, tokenizer, max_length: int, pack: bool = True):
+    tokenized = ds.map(
+        lambda x: tokenize_text(x, tokenizer, max_length),
+        remove_columns=ds.column_names,
+    )
+    if pack:
+        return LMConstantLengthDataset(tokenized, tokenizer, max_length)
+    tokenized.set_format(type="torch")
+    return tokenized
+
+
+def run_dapt(
+    dataset: Dataset,
+    model_name: str,
+    output_dir: str,
+    use_lora: bool = False,
+    load_in_4bit: bool = False,
+    max_length: int = 1024,
+    per_device_train_batch_size: int = 1,
+    gradient_accumulation_steps: int = 1,
+    num_train_epochs: int = 1,
+    learning_rate: float = 1e-4,
+    lr_scheduler_type: str = "linear",
+): 
+    """Domain-adaptive pretraining on `text_clean` with a causal LM objective."""
+    assert 512 <= max_length <= 2048, "max_length should be between 512 and 2048"
+    model, tokenizer = load_model_and_tokenizer(
+        model_name, use_lora=use_lora, load_in_4bit=load_in_4bit
+    )
+    train_ds = build_dapt_dataset(dataset, tokenizer, max_length, pack=True)
+
+    args = TrainingArguments(
+        output_dir=output_dir,
+        per_device_train_batch_size=per_device_train_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        num_train_epochs=num_train_epochs,
+        learning_rate=learning_rate,
+        lr_scheduler_type=lr_scheduler_type,
+        save_strategy="epoch",
+        fp16=not load_in_4bit,
+        logging_steps=10,
+    )
+
+    trainer = Trainer(model=model, args=args, train_dataset=train_ds)
+    trainer.train()
+    if use_lora:
+        model = model.merge_and_unload()
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+    return output_dir
+
+
+def dapt_then_sft(
+    dapt_ds: Dataset,
+    sft_ds: Dataset,
+    model_name: str,
+    dapt_dir: str,
+    sft_dir: str,
+    use_lora_dapt: bool = False,
+    use_lora_sft: bool = True,
+    load_in_4bit: bool = False,
+    dapt_max_length: int = 1024,
+    sft_max_length: int = 2048,
+    **kwargs,
+):
+    """Run domain-adaptive pretraining then supervised fine-tuning."""
+    run_dapt(
+        dapt_ds,
+        model_name=model_name,
+        output_dir=dapt_dir,
+        use_lora=use_lora_dapt,
+        load_in_4bit=load_in_4bit,
+        max_length=dapt_max_length,
+    )
+    train(
+        sft_ds,
+        model_name=dapt_dir,
+        output_dir=sft_dir,
+        use_lora=use_lora_sft,
+        load_in_4bit=load_in_4bit,
+        max_length=sft_max_length,
+        **kwargs,
+    )
+    return sft_dir
 
 def tokenize_example(example: Dict, tokenizer, max_length: int) -> Dict:
     prompt_ids = tokenizer.encode(example["prompt"], add_special_tokens=False)

@@ -114,7 +114,6 @@ print(metrics)
 `evaluate_baselines` returns aggregated ROUGE-1/2/L and BERTScore metrics for the two
 baselines.
 
-
 ## Long-context summarization
 
 Use `long_context.py` to handle documents that exceed the context window of
@@ -161,3 +160,30 @@ train(
 ```
 
 `TrainingArguments` expose common knobs such as `gradient_accumulation_steps`, `lr_scheduler_type`, and `save_strategy='epoch'`.
+
+### Domain-adaptive pretraining (DAPT)
+
+Before supervised fine-tuning, you can run a lightweight domain-adaptive pretraining
+step over `text_clean` only. The `run_dapt` helper trains a causal LM with short
+sequences (512–2048 tokens) using the same backbone as SFT. The resulting
+checkpoint can then be fed into `train` for summarization or other tasks.
+
+```python
+from datasets import Dataset
+from finetune import run_dapt, train
+
+# text_df contains a doc_id and text_clean column
+text_ds = Dataset.from_pandas(text_df[["doc_id", "text_clean"]])
+dapt_dir = run_dapt(text_ds, model_name="mistralai/Mistral-7B-Instruct-v0.3", output_dir="mistral_dapt")
+
+# summarization_df has prompt/target columns produced by data_utils
+summ_ds = Dataset.from_pandas(summarization_df)
+train(summ_ds, model_name=dapt_dir, output_dir="mistral_sft", use_lora=True)
+```
+
+For convenience, `dapt_then_sft` chains the two stages sequentially:
+
+```python
+from finetune import dapt_then_sft
+dapt_then_sft(text_ds, summ_ds, model_name="mistralai/Mistral-7B-Instruct-v0.3", dapt_dir="mistral_dapt", sft_dir="mistral_sft")
+```
