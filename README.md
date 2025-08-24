@@ -25,7 +25,6 @@ saved to `redactions.jsonl` for later reversal. Near-duplicate `text_clean` entr
 `df_train` are removed using a SimHash similarity threshold of `0.9` to prevent leakage
 against `df_val` and `df_test`. A mapping of dropped indices to `doc_id` is returned.
 
-
 The loader verifies that `doc_id` values are unique across splits and writes the
 cleaned DataFrames to canonical Parquet files (`train.parquet`, `val.parquet`,
 `test.parquet`).
@@ -243,14 +242,16 @@ python faithfulness.py --demo
 
 ## API serving and batch inference
 
-Run the FastAPI app to expose summarization and retrieval-augmented QA endpoints:
+Run the FastAPI app to expose summarization and retrieval-augmented QA endpoints with a built-in prompt guard:
 
 ```bash
 uvicorn app:app --reload
 ```
 
-- `POST /summarize` accepts `{"text": "..."}` and returns `{"summary": "...", "citations": []}`.
-- `POST /qa` accepts `{"question": "..."}` and returns an answer with a list of `doc_id:chunk_id` citations.
+- `POST /summarize` accepts `{"text": "...", "doc_id": "case123"}` and returns a neutral summary with `doc_id` citations.
+- `POST /qa` accepts `{"question": "..."}` and returns an educational answer with a list of `doc_id:chunk_id` citations.
+
+Both endpoints refuse requests for legal advice, add a disclaimer that responses are for educational purposes only, and surface any policy concerns via a `policy_flags` field (e.g., `missing_citation`, `speculation`).
 
 For offline processing of the canonical test split, use `batch_infer.py`:
 
@@ -259,4 +260,3 @@ python batch_infer.py --model out/legal-llm-sft --output predictions.csv
 ```
 
 The script loads the test DataFrame via `load_dataframes`, runs the summarization model on each `text_clean`, and writes the results to a CSV file.
-

@@ -333,8 +333,6 @@ def load_dataframes(
     df_train = _clean_dataframe(df_train, allow_personal, redaction_path)
     df_val = _clean_dataframe(df_val, allow_personal, redaction_path)
     df_test = _clean_dataframe(df_test, allow_personal, redaction_path)
-
-
     df_train, dropped_map = drop_near_duplicates(
         df_train, df_val, df_test, threshold=dup_threshold
     )

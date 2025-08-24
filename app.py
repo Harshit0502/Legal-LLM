@@ -26,6 +26,22 @@ except Exception:  # pragma: no cover - optional deps may be missing
     RAGPipeline = FaissRetriever = chunk_dataframe = None  # type: ignore
     pd = None  # type: ignore
 
+try:
+    from policy import (
+        DISCLAIMER,
+        is_request_for_legal_advice,
+        policy_check,
+    )
+except Exception:  # pragma: no cover - policy utilities may be missing
+    DISCLAIMER = ""
+
+    def is_request_for_legal_advice(_: str) -> bool:  # type: ignore
+        return False
+
+    def policy_check(_: str, __: list) -> list:  # type: ignore
+        return []
+
+
 MODEL_NAME = os.getenv("SFT_MODEL_NAME", "google/flan-t5-base")
 
 # Load summarization model if possible
@@ -58,7 +74,7 @@ app = FastAPI(title="Legal-LLM API") if FastAPI else None  # type: ignore
 
 class SummarizeRequest(BaseModel):  # type: ignore[misc]
     text: str
-
+    doc_id: Optional[str] = "unknown"
 
 class QARequest(BaseModel):  # type: ignore[misc]
     question: str
@@ -71,16 +87,34 @@ def summarize(req: SummarizeRequest) -> Dict[str, object]:
     ids = _tok(req.text, return_tensors="pt").input_ids
     out = _model.generate(ids, max_new_tokens=256)
     summary = _tok.decode(out[0], skip_special_tokens=True)
-    return {"summary": summary, "citations": []}
+    citations = [req.doc_id] if req.doc_id else []
+    flags = policy_check(summary, citations)
+    return {
+        "summary": summary,
+        "citations": citations,
+        "policy_flags": flags,
+        "disclaimer": DISCLAIMER,
+    }
+
 
 
 @app.post("/qa")  # type: ignore[misc]
 def qa(req: QARequest) -> Dict[str, object]:
     if _rag is None:
         raise HTTPException(status_code=500, detail="RAG pipeline unavailable")
+    if is_request_for_legal_advice(req.question):
+        raise HTTPException(
+            status_code=403,
+            detail="I cannot provide legal advice. Responses are for educational purposes only.",
+        )
     result = _rag.generate(req.question)
-    return {"answer": result["answer"], "citations": result["citations"]}
-
+    flags = policy_check(result["answer"], result["citations"])
+    return {
+        "answer": result["answer"],
+        "citations": result["citations"],
+        "policy_flags": flags,
+        "disclaimer": DISCLAIMER,
+    }
 
 if __name__ == "__main__":
     if FastAPI is None:
