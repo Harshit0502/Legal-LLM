@@ -55,3 +55,30 @@ from data_utils import analyze_datasets
 df_train, df_val, df_test, dropped = load_dataframes()
 analyze_datasets(df_train, df_val, df_test)
 ```
+
+## Task-specific dataset transforms
+
+Three helpers in `data_utils` generate `prompt`/`target` pairs for downstream
+modeling tasks:
+
+- **Abstractive summarization** – `build_summarization_dataset` uses
+  `text_clean` as the input and `summary_clean` as the target.
+- **Legal QA** – `build_legal_qa_dataset` extracts `ISSUE` and `HOLDING/HELD`
+  sections from `text_clean` to form synthetic question/answer pairs.
+- **Headnote generation** – `build_headnote_dataset` creates structured targets
+  with `Facts`, `Issue`, `Holding`, and `Reasoning` sections.
+
+Each function returns a DataFrame with `doc_id`, `prompt`, and `target` columns:
+
+```python
+from data_utils import (
+    build_summarization_dataset,
+    build_legal_qa_dataset,
+    build_headnote_dataset,
+)
+
+df_train, _, _, _ = load_dataframes()
+summ_df = build_summarization_dataset(df_train)
+qa_df = build_legal_qa_dataset(df_train)
+headnote_df = build_headnote_dataset(df_train)
+```

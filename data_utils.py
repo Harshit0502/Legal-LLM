@@ -334,6 +334,78 @@ def analyze_datasets(
             score = _jaccard(vocabs[s1][col], vocabs[s2][col])
             print(f"Jaccard({s1},{s2}) for {col}: {score:.3f}")
 
+def _extract_section(text: str, header_regex: str) -> Optional[str]:
+    """Return section text following a header pattern or ``None``.
+
+    Parameters
+    ----------
+    text : str
+        Document text to search.
+    header_regex : str
+        Regular expression matching the section header (without the colon).
+    """
+
+    pattern = rf"({header_regex}):?(.*?)(?=\n[A-Z][A-Z ]{{2,}}:|$)"
+    match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+    return match.group(2).strip() if match else None
+
+
+def build_summarization_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """Prepare abstractive summarization prompts and targets."""
+
+    out = df[["doc_id", "text_clean", "summary_clean"]].copy()
+    out["prompt"] = out["text_clean"].map(
+        lambda x: f"Summarize the following text:\n{x}\nSummary:"
+    )
+    out["target"] = out["summary_clean"]
+    return out[["doc_id", "prompt", "target"]]
+
+
+def build_legal_qa_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """Generate synthetic question/answer pairs from ISSUE and HOLDING sections."""
+
+    rows = []
+    for _, row in df.iterrows():
+        issue = _extract_section(row["text_clean"], "ISSUE")
+        holding = _extract_section(row["text_clean"], "HOLDING|HELD")
+        if issue and holding:
+            prompt = f"Question: {issue}\nAnswer:"
+            rows.append(
+                {"doc_id": row["doc_id"], "prompt": prompt, "target": holding}
+            )
+    return pd.DataFrame(rows)
+
+
+def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """Construct headnote generation pairs with structured targets."""
+
+    rows = []
+    for _, row in df.iterrows():
+        facts = _extract_section(row["text_clean"], "FACTS")
+        issue = _extract_section(row["text_clean"], "ISSUE")
+        holding = _extract_section(row["text_clean"], "HOLDING|HELD")
+        reasoning = _extract_section(row["text_clean"], "REASONING")
+        parts = []
+        if facts:
+            parts.append(f"Facts: {facts}")
+        if issue:
+            parts.append(f"Issue: {issue}")
+        if holding:
+            parts.append(f"Holding: {holding}")
+        if reasoning:
+            parts.append(f"Reasoning: {reasoning}")
+        if parts:
+            prompt = (
+                "Generate a headnote with sections Facts, Issue, Holding, and Reasoning "
+                f"for the following case:\n{row['text_clean']}\nHeadnote:"
+            )
+            rows.append(
+                {"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)}
+            )
+    return pd.DataFrame(rows)
+
+
+
 if __name__ == "__main__":
     sample = {
         "doc_id": [1, 2, 3],
@@ -355,3 +427,11 @@ if __name__ == "__main__":
     print(f"Dropped map: {dropped}")
     analyze_datasets(t, v, te)
 
+    print("\nSummarization dataset sample:")
+    print(build_summarization_dataset(t).head())
+
+    print("\nLegal QA dataset sample:")
+    print(build_legal_qa_dataset(t).head())
+
+    print("\nHeadnote dataset sample:")
+    print(build_headnote_dataset(t).head())
