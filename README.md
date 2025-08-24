@@ -110,12 +110,13 @@ from baselines import evaluate_baselines
 from data_utils import load_dataframes
 
 _, df_val, _, _ = load_dataframes()
-metrics = evaluate_baselines(df_val, sample_size=32)
+metrics = evaluate_baselines(df_val, sample_size=32, output_dir="out/baselines")
 print(metrics)
 ```
 
 `evaluate_baselines` returns aggregated ROUGE-1/2/L and BERTScore metrics for the two
-baselines.
+baselines and, if `output_dir` is provided, saves `baseline_eval.csv` and a
+`baseline_eval.png` bar plot.
 
 ## Long-context summarization
 
@@ -165,6 +166,11 @@ train(
 
 `TrainingArguments` expose common knobs such as `gradient_accumulation_steps`, `lr_scheduler_type`, and `save_strategy='epoch'`.
 
+After training, the helper saves adapter weights (or full model), the tokenizer, and a
+`config.json` into the specified `output_dir`. When an evaluation set is provided, an
+`eval_report.csv` and accompanying `eval_report.png` bar chart of ROUGE/BERTScore
+metrics are also written.
+
 ### Domain-adaptive pretraining (DAPT)
 
 Before supervised fine-tuning, you can run a lightweight domain-adaptive pretraining
@@ -210,11 +216,22 @@ chunks = chunk_dataframe(df_train)
 retriever = FaissRetriever()
 retriever.build(chunks)
 
+# Persist index and metadata
+retriever.save("chunks.index", "chunks.parquet")
+
+# Load later
+# retriever.load("chunks.index", "chunks.parquet")
+
+
 pipeline = RAGPipeline(retriever)
 result = pipeline.generate("What is the holding regarding liability?", top_k=3)
 print(result["answer"])
 print("Citations:", result["citations"])
 ```
+
+The `save` method writes the FAISS index to disk and a metadata parquet containing
+`doc_id`, `chunk_id`, and token offsets for each chunk.
+
 
 ## Faithfulness and factuality evaluation
 

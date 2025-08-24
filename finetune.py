@@ -1,4 +1,6 @@
 import argparse
+import csv
+import os
 from typing import Dict, Optional
 
 import numpy as np
@@ -308,8 +310,36 @@ def train(
         compute_metrics=compute_metrics if eval_ds is not None else None,
     )
     trainer.train()
+    # Save final model/tokenizer/config
+    os.makedirs(output_dir, exist_ok=True)
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
+    try:
+        model.config.to_json_file(os.path.join(output_dir, "config.json"))
+    except Exception:
+        pass
+
+    # Write evaluation report and quick metric plot if evaluation data is present
+    if eval_ds is not None:
+        metrics = trainer.evaluate(eval_ds)
+        csv_path = os.path.join(output_dir, "eval_report.csv")
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=metrics.keys())
+            writer.writeheader()
+            writer.writerow(metrics)
+        try:
+            import matplotlib.pyplot as plt
+
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.bar(range(len(metrics)), list(metrics.values()))
+            ax.set_xticks(range(len(metrics)))
+            ax.set_xticklabels(list(metrics.keys()), rotation=45, ha="right")
+            ax.set_ylabel("score")
+            fig.tight_layout()
+            fig.savefig(os.path.join(output_dir, "eval_report.png"))
+            plt.close(fig)
+        except Exception:  # pragma: no cover - matplotlib may be missing
+            pass
     return trainer
 
 

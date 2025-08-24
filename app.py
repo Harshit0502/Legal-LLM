@@ -41,7 +41,6 @@ except Exception:  # pragma: no cover - policy utilities may be missing
     def policy_check(_: str, __: list) -> list:  # type: ignore
         return []
 
-
 MODEL_NAME = os.getenv("SFT_MODEL_NAME", "google/flan-t5-base")
 
 # Load summarization model if possible
@@ -79,7 +78,6 @@ class SummarizeRequest(BaseModel):  # type: ignore[misc]
 class QARequest(BaseModel):  # type: ignore[misc]
     question: str
 
-
 @app.post("/summarize")  # type: ignore[misc]
 def summarize(req: SummarizeRequest) -> Dict[str, object]:
     if _tok is None or _model is None:
@@ -95,8 +93,6 @@ def summarize(req: SummarizeRequest) -> Dict[str, object]:
         "policy_flags": flags,
         "disclaimer": DISCLAIMER,
     }
-
-
 
 @app.post("/qa")  # type: ignore[misc]
 def qa(req: QARequest) -> Dict[str, object]:
