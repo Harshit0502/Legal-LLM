@@ -211,3 +211,4 @@ result = pipeline.generate("What is the holding regarding liability?", top_k=3)
 print(result["answer"])
 print("Citations:", result["citations"])
 ```
+
