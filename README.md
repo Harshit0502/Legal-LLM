@@ -114,6 +114,28 @@ print(metrics)
 `evaluate_baselines` returns aggregated ROUGE-1/2/L and BERTScore metrics for the two
 baselines.
 
+
+## Long-context summarization
+
+Use `long_context.py` to handle documents that exceed the context window of
+standard summarizers. The helper chunk-summarizes with a sliding window and can
+optionally leverage locally available long-context models such as
+`allenai/led-base-16384` or `mistralai/Mistral-7B-32k`. Chunk summaries are
+recombined via either a simple vote/consensus pass or a tree-of-thought
+stitching strategy:
+
+```python
+from long_context import long_context_summary
+
+text = "... very long legal document ..."
+summary = long_context_summary(text, model_name="allenai/led-base-16384", strategy="tree")
+print(summary)
+```
+
+If the requested model is unavailable, the function falls back to
+`google/pegasus-xsum` and performs hierarchical summarization over sliding
+window chunks.
+
 ## Fine-tuning models
 
 `finetune.py` offers a simple utility to fine-tune instruction models with either LoRA adapters or full parameter updates. Supported backbones include `mistralai/Mistral-7B-Instruct-v0.3`, `meta-llama/Meta-Llama-3-8B-Instruct`, and `Qwen2.5-7B-Instruct`.
@@ -139,4 +161,3 @@ train(
 ```
 
 `TrainingArguments` expose common knobs such as `gradient_accumulation_steps`, `lr_scheduler_type`, and `save_strategy='epoch'`.
-

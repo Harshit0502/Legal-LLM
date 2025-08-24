@@ -155,6 +155,7 @@ def _save_splits_to_parquet(
         df.to_parquet(path, index=False)
         print(f"Saved {split} split to {path}")
 
+
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Add cleaned text and summary columns to a copy of ``df``."""
 
