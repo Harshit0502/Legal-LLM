@@ -124,7 +124,6 @@ def _validate_dataframe(df: pd.DataFrame, name: str) -> None:
     print(f"{name} null counts:\n{df.isna().sum()}")
     print(f"{name} examples:\n{df.head(2)}\n")
 
-
 def _assert_disjoint_doc_ids(
     df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame
 ) -> None:
@@ -155,7 +154,6 @@ def _save_splits_to_parquet(
         path = cfg.get(f"{split}_parquet", f"{split}.parquet")
         df.to_parquet(path, index=False)
         print(f"Saved {split} split to {path}")
-
 
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Add cleaned text and summary columns to a copy of ``df``."""
@@ -244,6 +242,7 @@ def load_dataframes(
     config: Optional[Dict[str, str]] = None,
     dup_threshold: float = 0.9,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[int, int]]:
+
     cfg = CONFIG if config is None else config
     if df_train is None:
         df_train = _read_dataframe(cfg["train_path"])
@@ -255,7 +254,6 @@ def load_dataframes(
     _validate_dataframe(df_train, "df_train")
     _validate_dataframe(df_val, "df_val")
     _validate_dataframe(df_test, "df_test")
-
     _assert_disjoint_doc_ids(df_train, df_val, df_test)
 
     df_train = _clean_dataframe(df_train)
@@ -378,6 +376,7 @@ def build_legal_qa_dataset(df: pd.DataFrame) -> pd.DataFrame:
                 row["text_clean"], style="qa", question=issue
             )
             rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": holding})
+
     return pd.DataFrame(rows)
 
 
@@ -400,10 +399,10 @@ def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
         if reasoning:
             parts.append(f"Reasoning: {reasoning}")
         if parts:
+
             prompt = build_prompt(row["text_clean"], style="headnote")
             rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)})
     return pd.DataFrame(rows)
-
 
 if __name__ == "__main__":
     sample = {

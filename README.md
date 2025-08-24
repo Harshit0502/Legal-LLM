@@ -94,3 +94,4 @@ print(build_prompt("Some case text", style="headnote"))
 ```
 
 The dataset helpers above automatically apply the appropriate templates when generating `prompt`/`target` pairs.
+
