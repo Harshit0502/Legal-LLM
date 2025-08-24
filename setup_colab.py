@@ -15,6 +15,7 @@ PACKAGES = [
     "rouge_score",
     "bert_score",
     "sumy",
+    "sentence-transformers",
     "wandb",
     "pandas",
     "matplotlib",

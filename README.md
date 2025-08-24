@@ -187,3 +187,28 @@ For convenience, `dapt_then_sft` chains the two stages sequentially:
 from finetune import dapt_then_sft
 dapt_then_sft(text_ds, summ_ds, model_name="mistralai/Mistral-7B-Instruct-v0.3", dapt_dir="mistral_dapt", sft_dir="mistral_sft")
 ```
+
+## Retrieval-augmented generation
+
+`rag.py` provides a small retrieval stack that chunks `text_clean` into 1k-token
+segments with 200-token overlap, embeds them with
+`sentence-transformers/all-MiniLM-L6-v2`, and indexes the vectors in FAISS.
+Given a legal question, the retriever returns the top-k relevant chunks and the
+`RAGPipeline` composes a prompt that cites each chunk by `doc_id:chunk_id`
+before generating an answer with a causal language model.
+
+```python
+import pandas as pd
+from rag import chunk_dataframe, FaissRetriever, RAGPipeline
+
+# df_train has doc_id and text_clean
+chunks = chunk_dataframe(df_train)
+retriever = FaissRetriever()
+retriever.build(chunks)
+
+pipeline = RAGPipeline(retriever)
+result = pipeline.generate("What is the holding regarding liability?", top_k=3)
+print(result["answer"])
+print("Citations:", result["citations"])
+```
+
