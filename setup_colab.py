@@ -14,6 +14,7 @@ PACKAGES = [
     "evaluate",
     "rouge_score",
     "bert_score",
+    "sumy",
     "wandb",
     "pandas",
     "matplotlib",

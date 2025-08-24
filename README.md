@@ -95,3 +95,21 @@ print(build_prompt("Some case text", style="headnote"))
 
 The dataset helpers above automatically apply the appropriate templates when generating `prompt`/`target` pairs.
 
+## Baseline summarizers
+
+`baselines.py` provides quick baselines for extractive and abstractive summarization. The
+extractive baseline uses TextRank via `sumy`, while the abstractive baseline relies on a
+pretrained transformer such as `google/pegasus-xsum`. Both are evaluated with ROUGE and
+BERTScore on a small validation sample:
+
+```python
+from baselines import evaluate_baselines
+from data_utils import load_dataframes
+
+_, df_val, _, _ = load_dataframes()
+metrics = evaluate_baselines(df_val, sample_size=32)
+print(metrics)
+```
+
+`evaluate_baselines` returns aggregated ROUGE-1/2/L and BERTScore metrics for the two
+baselines.

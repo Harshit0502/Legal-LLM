@@ -242,7 +242,6 @@ def load_dataframes(
     config: Optional[Dict[str, str]] = None,
     dup_threshold: float = 0.9,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[int, int]]:
-
     cfg = CONFIG if config is None else config
     if df_train is None:
         df_train = _read_dataframe(cfg["train_path"])
@@ -376,7 +375,6 @@ def build_legal_qa_dataset(df: pd.DataFrame) -> pd.DataFrame:
                 row["text_clean"], style="qa", question=issue
             )
             rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": holding})
-
     return pd.DataFrame(rows)
 
 
@@ -399,7 +397,6 @@ def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
         if reasoning:
             parts.append(f"Reasoning: {reasoning}")
         if parts:
-
             prompt = build_prompt(row["text_clean"], style="headnote")
             rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)})
     return pd.DataFrame(rows)
