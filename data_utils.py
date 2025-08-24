@@ -9,11 +9,13 @@ import pandas as pd
 import spacy
 import tiktoken
 
-
 CONFIG = {
     "train_path": "train.csv",
     "val_path": "val.csv",
     "test_path": "test.csv",
+    "train_parquet": "train.parquet",
+    "val_parquet": "val.parquet",
+    "test_parquet": "test.parquet",
 }
 
 
@@ -96,7 +98,6 @@ def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
 
     return text, name_map
 
-
 def _read_dataframe(path: str) -> pd.DataFrame:
     if path.endswith(".csv"):
         return pd.read_csv(path)
@@ -121,6 +122,36 @@ def _validate_dataframe(df: pd.DataFrame, name: str) -> None:
     print(f"{name} null counts:\n{df.isna().sum()}")
     print(f"{name} examples:\n{df.head(2)}\n")
 
+def _assert_disjoint_doc_ids(
+    df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame
+) -> None:
+    """Raise if any ``doc_id`` appears in more than one split."""
+
+    train_ids, val_ids, test_ids = (
+        set(df_train["doc_id"]),
+        set(df_val["doc_id"]),
+        set(df_test["doc_id"]),
+    )
+    overlap = (train_ids & val_ids) | (train_ids & test_ids) | (val_ids & test_ids)
+    if overlap:
+        raise AssertionError(
+            f"doc_id overlap across splits: {sorted(list(overlap))[:10]}"
+        )
+    print("No doc_id overlap detected across splits")
+
+
+def _save_splits_to_parquet(
+    df_train: pd.DataFrame,
+    df_val: pd.DataFrame,
+    df_test: pd.DataFrame,
+    cfg: Dict[str, str],
+) -> None:
+    """Persist ``df_train``, ``df_val`` and ``df_test`` to Parquet files."""
+
+    for split, df in [("train", df_train), ("val", df_val), ("test", df_test)]:
+        path = cfg.get(f"{split}_parquet", f"{split}.parquet")
+        df.to_parquet(path, index=False)
+        print(f"Saved {split} split to {path}")
 
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Add cleaned text and summary columns to a copy of ``df``."""
@@ -202,7 +233,6 @@ def drop_near_duplicates(
     df_dedup = df_train.drop(index=drop_idx).reset_index(drop=True)
     return df_dedup, drop_map
 
-
 def load_dataframes(
     df_train: Optional[pd.DataFrame] = None,
     df_val: Optional[pd.DataFrame] = None,
@@ -222,6 +252,7 @@ def load_dataframes(
     _validate_dataframe(df_train, "df_train")
     _validate_dataframe(df_val, "df_val")
     _validate_dataframe(df_test, "df_test")
+    _assert_disjoint_doc_ids(df_train, df_val, df_test)
 
     df_train = _clean_dataframe(df_train)
     df_val = _clean_dataframe(df_val)
@@ -231,15 +262,15 @@ def load_dataframes(
         df_train, df_val, df_test, threshold=dup_threshold
     )
 
-
     for name, df in [("df_train", df_train), ("df_val", df_val), ("df_test", df_test)]:
         print(
             f"{name} cleaned samples:\n"
             f"{df[['text', 'text_clean', 'summary', 'summary_clean']].head(3)}\n"
         )
 
-    return df_train, df_val, df_test, dropped_map
+    _save_splits_to_parquet(df_train, df_val, df_test, cfg)
 
+    return df_train, df_val, df_test, dropped_map
 
 
 def analyze_datasets(
@@ -303,8 +334,6 @@ def analyze_datasets(
             score = _jaccard(vocabs[s1][col], vocabs[s2][col])
             print(f"Jaccard({s1},{s2}) for {col}: {score:.3f}")
 
-
-
 if __name__ == "__main__":
     sample = {
         "doc_id": [1, 2, 3],
@@ -318,7 +347,6 @@ if __name__ == "__main__":
             "The issue involved Jane Roe's liability.",
             "Justice Bob Jones delivered the holding.",
         ],
-
     }
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
