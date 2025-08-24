@@ -54,7 +54,6 @@ def load_model_and_tokenizer(model_name: str,
 
     return model, tokenizer
 
-
 def tokenize_text(example: Dict, tokenizer, max_length: int) -> Dict:
     ids = tokenizer.encode(example["text_clean"], add_special_tokens=False)
     ids = ids[:max_length]
@@ -172,7 +171,6 @@ def dapt_then_sft(
         **kwargs,
     )
     return sft_dir
-
 
 def tokenize_example(example: Dict, tokenizer, max_length: int) -> Dict:
     prompt_ids = tokenizer.encode(example["prompt"], add_special_tokens=False)

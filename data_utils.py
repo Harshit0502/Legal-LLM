@@ -3,7 +3,6 @@ import re
 import unicodedata
 import hashlib
 from typing import Dict, Optional, Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -123,7 +122,6 @@ def _validate_dataframe(df: pd.DataFrame, name: str) -> None:
     print(f"{name} shape: {df.shape}")
     print(f"{name} null counts:\n{df.isna().sum()}")
     print(f"{name} examples:\n{df.head(2)}\n")
-
 
 def _assert_disjoint_doc_ids(
     df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame
@@ -255,7 +253,6 @@ def load_dataframes(
     _validate_dataframe(df_train, "df_train")
     _validate_dataframe(df_val, "df_val")
     _validate_dataframe(df_test, "df_test")
-
     _assert_disjoint_doc_ids(df_train, df_val, df_test)
 
     df_train = _clean_dataframe(df_train)
@@ -403,7 +400,6 @@ def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
             prompt = build_prompt(row["text_clean"], style="headnote")
             rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)})
     return pd.DataFrame(rows)
-
 
 if __name__ == "__main__":
     sample = {
