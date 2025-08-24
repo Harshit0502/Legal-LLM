@@ -1,7 +1,8 @@
 import os
-
 import re
 import unicodedata
+import hashlib
+
 from typing import Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -9,7 +10,6 @@ import numpy as np
 import pandas as pd
 import spacy
 import tiktoken
-
 
 
 CONFIG = {
@@ -133,13 +133,86 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _simhash(text: str) -> int:
+    """Return a 64-bit SimHash fingerprint of ``text``."""
+    tokens = text.split()
+    if not tokens:
+        return 0
+    shingles = (
+        [" ".join(tokens[i : i + 3]) for i in range(len(tokens) - 2)]
+        if len(tokens) >= 3
+        else tokens
+    )
+    v = [0] * 64
+    for sh in shingles:
+        h = int(hashlib.md5(sh.encode("utf-8")).hexdigest(), 16)
+        for i in range(64):
+            bit = 1 << i
+            v[i] += 1 if h & bit else -1
+    fingerprint = 0
+    for i, val in enumerate(v):
+        if val >= 0:
+            fingerprint |= 1 << i
+    return fingerprint
+
+
+def _simhash_similarity(a: int, b: int) -> float:
+    """Similarity between two SimHash fingerprints."""
+    return 1 - (bin(a ^ b).count("1") / 64)
+
+
+def drop_near_duplicates(
+    df_train: pd.DataFrame,
+    df_val: pd.DataFrame,
+    df_test: pd.DataFrame,
+    threshold: float = 0.9,
+) -> Tuple[pd.DataFrame, Dict[int, int]]:
+    """Remove near-duplicate rows from ``df_train`` using SimHash.
+
+    Rows in ``df_train`` that are similar to each other or to rows in ``df_val``/
+    ``df_test`` are dropped to prevent data leakage. Returns the deduplicated
+    DataFrame and a mapping from original index to ``doc_id`` for dropped rows.
+    """
+
+    val_hashes = df_val["text_clean"].map(_simhash).to_numpy()
+    test_hashes = df_test["text_clean"].map(_simhash).to_numpy()
+
+    drop_idx: list[int] = []
+    drop_map: Dict[int, int] = {}
+    kept_hashes: list[int] = []
+
+    for idx, row in df_train.iterrows():
+        h = _simhash(row["text_clean"])
+        similar_to_val = any(_simhash_similarity(h, vh) >= threshold for vh in val_hashes)
+        similar_to_test = any(
+            _simhash_similarity(h, th) >= threshold for th in test_hashes
+        )
+        similar_to_train = any(
+            _simhash_similarity(h, kh) >= threshold for kh in kept_hashes
+        )
+        if similar_to_val or similar_to_test or similar_to_train:
+            drop_idx.append(idx)
+            drop_map[idx] = row["doc_id"]
+        else:
+            kept_hashes.append(h)
+
+    if drop_idx:
+        print(f"Removed {len(drop_idx)} near-duplicate rows from train")
+    else:
+        print("No near-duplicates detected in train")
+
+    df_dedup = df_train.drop(index=drop_idx).reset_index(drop=True)
+    return df_dedup, drop_map
+
 
 def load_dataframes(
     df_train: Optional[pd.DataFrame] = None,
     df_val: Optional[pd.DataFrame] = None,
     df_test: Optional[pd.DataFrame] = None,
     config: Optional[Dict[str, str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    dup_threshold: float = 0.9,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[int, int]]:
+
     cfg = CONFIG if config is None else config
     if df_train is None:
         df_train = _read_dataframe(cfg["train_path"])
@@ -156,13 +229,19 @@ def load_dataframes(
     df_val = _clean_dataframe(df_val)
     df_test = _clean_dataframe(df_test)
 
+    df_train, dropped_map = drop_near_duplicates(
+        df_train, df_val, df_test, threshold=dup_threshold
+    )
+
+
     for name, df in [("df_train", df_train), ("df_val", df_val), ("df_test", df_test)]:
         print(
             f"{name} cleaned samples:\n"
             f"{df[['text', 'text_clean', 'summary', 'summary_clean']].head(3)}\n"
         )
 
-    return df_train, df_val, df_test
+    return df_train, df_val, df_test, dropped_map
+
 
 
 def analyze_datasets(
@@ -246,6 +325,7 @@ if __name__ == "__main__":
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
     df_te = pd.DataFrame(sample)
-    t, v, te = load_dataframes(df_t, df_v, df_te)
+    t, v, te, dropped = load_dataframes(df_t, df_v, df_te)
+    print(f"Dropped map: {dropped}")
     analyze_datasets(t, v, te)
 

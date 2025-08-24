@@ -21,17 +21,21 @@ accepts preloaded DataFrames or reads CSV/Parquet files from a config and prints
 null counts, and example rows while validating that `text` and `summary` are non-empty
 strings. The loader also applies a `clean_text` routine to produce `text_clean` and
 `summary_clean` columns that normalize Unicode, standardize punctuation, drop page/line
-numbers, and optionally anonymize names.
+numbers, and optionally anonymize names. Near-duplicate `text_clean` entries in `df_train`
+are removed using a SimHash similarity threshold of `0.9` to prevent leakage against
+`df_val` and `df_test`. A mapping of dropped indices to `doc_id` is returned.
 
 
 ```python
 from data_utils import load_dataframes
 
 # Option 1: pass existing DataFrames
-df_train, df_val, df_test = load_dataframes(df_train, df_val, df_test)
+df_train, df_val, df_test, dropped = load_dataframes(df_train, df_val, df_test)
 
 # Option 2: read from paths defined in CONFIG
-df_train, df_val, df_test = load_dataframes()
+df_train, df_val, df_test, dropped = load_dataframes()
+print("Dropped duplicates:", dropped)
+
 print(df_train[["text", "text_clean"]].head())
 ```
 
@@ -46,7 +50,7 @@ Jaccard overlap of vocabularies between train/val/test.
 ```python
 from data_utils import analyze_datasets
 
-df_train, df_val, df_test = load_dataframes()
+df_train, df_val, df_test, dropped = load_dataframes()
 analyze_datasets(df_train, df_val, df_test)
 
 ```
