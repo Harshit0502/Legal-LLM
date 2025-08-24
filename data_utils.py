@@ -453,8 +453,12 @@ def build_legal_qa_dataset(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
-    """Construct headnote generation pairs with structured targets."""
+    """Construct headnote generation pairs with structured targets.
 
+    Returns a DataFrame containing ``doc_id``, ``prompt``, ``target`` and
+    metadata columns ``source='human'`` and ``weight=1.0`` so the result can be
+    mixed with synthetic examples that carry a smaller training weight.
+    """
     rows = []
     for _, row in df.iterrows():
         facts = _extract_section(row["text_clean"], "FACTS")
@@ -472,8 +476,107 @@ def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
             parts.append(f"Reasoning: {reasoning}")
         if parts:
             prompt = build_prompt(row["text_clean"], style="headnote")
-            rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)})
+            rows.append(
+                {
+                    "doc_id": row["doc_id"],
+                    "prompt": prompt,
+                    "target": "\n".join(parts),
+                    "source": "human",
+                    "weight": 1.0,
+                }
+            )
     return pd.DataFrame(rows)
+
+
+def _has_structured_sections(text: str, min_sections: int = 3) -> bool:
+    """Return ``True`` if ``text`` contains the expected headnote sections."""
+
+    headers = ["Facts:", "Issue:", "Holding:", "Reasoning:"]
+    found = sum(1 for h in headers if h.lower() in text.lower())
+    return found >= min_sections
+
+
+def generate_synthetic_headnotes(
+    df: pd.DataFrame,
+    model_name: str,
+    few_shot: Optional[list[Tuple[str, str]]] = None,
+    min_chars: int = 4000,
+    weight: float = 0.1,
+    max_new_tokens: int = 256,
+) -> pd.DataFrame:
+    """Use a model to label long judgments with synthetic headnotes.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with ``doc_id`` and ``text_clean`` columns.
+    model_name : str
+        Hugging Face model identifier or path.
+    few_shot : list of tuple(str, str), optional
+        Optional list of (text, headnote) pairs appended as few-shot examples.
+    min_chars : int, default 4000
+        Minimum length of ``text_clean`` required to trigger generation.
+    weight : float, default 0.1
+        Training weight assigned to synthetic examples.
+    max_new_tokens : int, default 256
+        Maximum number of new tokens to generate.
+
+    Returns
+    -------
+    pd.DataFrame
+        Rows with ``doc_id``, ``prompt``, ``target``, ``source='synthetic'`` and
+        ``weight`` columns.
+    """
+
+    from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
+    import torch
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    long_df = df[df["text_clean"].str.len() >= min_chars]
+
+    rows = []
+    for _, row in long_df.iterrows():
+        base_prompt = build_prompt(row["text_clean"], style="headnote")
+        prompt = base_prompt
+        if few_shot:
+            shots = []
+            for text, headnote in few_shot:
+                shot_prompt = build_prompt(text, style="headnote") + headnote
+                shots.append(shot_prompt)
+            prompt = "\n\n".join(shots) + "\n\n" + base_prompt
+        inputs = tokenizer(prompt, return_tensors="pt").to(device)
+        output = model.generate(**inputs, max_new_tokens=max_new_tokens)
+        generated = tokenizer.decode(output[0], skip_special_tokens=True)
+        headnote = generated[len(prompt) :].strip()
+        if _has_structured_sections(headnote):
+            rows.append(
+                {
+                    "doc_id": row["doc_id"],
+                    "prompt": base_prompt,
+                    "target": headnote,
+                    "source": "synthetic",
+                    "weight": weight,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def augment_headnote_dataset(
+    df: pd.DataFrame,
+    model_name: str,
+    **kwargs,
+) -> pd.DataFrame:
+    """Combine human headnotes with synthetic ones for training."""
+
+    human_df = build_headnote_dataset(df)
+    seen = set(human_df["doc_id"])
+    remaining = df[~df["doc_id"].isin(seen)]
+    synth_df = generate_synthetic_headnotes(remaining, model_name, **kwargs)
+    return pd.concat([human_df, synth_df], ignore_index=True)
 
 if __name__ == "__main__":
     sample = {

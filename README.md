@@ -85,6 +85,26 @@ qa_df = build_legal_qa_dataset(df_train)
 headnote_df = build_headnote_dataset(df_train)
 ```
 
+### Synthetic headnote augmentation
+
+Longer judgments that lack explicit section markers can be auto-labeled with
+headnotes using the current model. `generate_synthetic_headnotes` runs the model
+in zero/few-shot mode, filters outputs with simple heuristics, and flags them as
+`source="synthetic"` with a small training weight. `augment_headnote_dataset`
+combines human and synthetic examples:
+
+```python
+from data_utils import augment_headnote_dataset
+
+# Adds model-generated headnotes for long documents and returns a unified table
+augmented = augment_headnote_dataset(
+    df_train,
+    model_name="mistralai/Mistral-7B-Instruct-v0.3",
+    min_chars=4000,
+    weight=0.1,
+)
+```
+
 ## Prompt templates
 
 `prompts.py` exposes reusable templates with explicit `SYSTEM` and `USER` roles for a legal tone.
@@ -231,7 +251,6 @@ print("Citations:", result["citations"])
 
 The `save` method writes the FAISS index to disk and a metadata parquet containing
 `doc_id`, `chunk_id`, and token offsets for each chunk.
-
 
 ## Faithfulness and factuality evaluation
 
