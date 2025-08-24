@@ -27,6 +27,7 @@ PACKAGES = [
     "spacy",
     "fastapi",
     "uvicorn",
+
 ]
 
 def install_packages():

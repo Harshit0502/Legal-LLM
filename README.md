@@ -25,6 +25,7 @@ saved to `redactions.jsonl` for later reversal. Near-duplicate `text_clean` entr
 `df_train` are removed using a SimHash similarity threshold of `0.9` to prevent leakage
 against `df_val` and `df_test`. A mapping of dropped indices to `doc_id` is returned.
 
+
 The loader verifies that `doc_id` values are unique across splits and writes the
 cleaned DataFrames to canonical Parquet files (`train.parquet`, `val.parquet`,
 `test.parquet`).
@@ -258,3 +259,4 @@ python batch_infer.py --model out/legal-llm-sft --output predictions.csv
 ```
 
 The script loads the test DataFrame via `load_dataframes`, runs the summarization model on each `text_clean`, and writes the results to a CSV file.
+
