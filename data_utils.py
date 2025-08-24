@@ -1,4 +1,5 @@
 import os
+
 import re
 import unicodedata
 from typing import Dict, Optional, Tuple
@@ -8,6 +9,8 @@ import numpy as np
 import pandas as pd
 import spacy
 import tiktoken
+
+
 
 CONFIG = {
     "train_path": "train.csv",
@@ -95,6 +98,7 @@ def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
 
     return text, name_map
 
+
 def _read_dataframe(path: str) -> pd.DataFrame:
     if path.endswith(".csv"):
         return pd.read_csv(path)
@@ -127,6 +131,7 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["text_clean"], df["text_map"] = zip(*df["text"].map(clean_text))
     df["summary_clean"], df["summary_map"] = zip(*df["summary"].map(clean_text))
     return df
+
 
 
 def load_dataframes(
@@ -222,6 +227,7 @@ def analyze_datasets(
             print(f"Jaccard({s1},{s2}) for {col}: {score:.3f}")
 
 
+
 if __name__ == "__main__":
     sample = {
         "doc_id": [1, 2, 3],
@@ -235,9 +241,11 @@ if __name__ == "__main__":
             "The issue involved Jane Roe's liability.",
             "Justice Bob Jones delivered the holding.",
         ],
+
     }
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
     df_te = pd.DataFrame(sample)
     t, v, te = load_dataframes(df_t, df_v, df_te)
     analyze_datasets(t, v, te)
+
