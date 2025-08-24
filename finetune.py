@@ -60,7 +60,6 @@ def load_model_and_tokenizer(model_name: str,
 
     return model, tokenizer
 
-
 def tokenize_text(example: Dict, tokenizer, max_length: int) -> Dict:
     ids = tokenizer.encode(example["text_clean"], add_special_tokens=False)
     ids = ids[:max_length]
@@ -179,7 +178,6 @@ def dapt_then_sft(
     )
     return sft_dir
 
-
 def tokenize_example(example: Dict, tokenizer, max_length: int) -> Dict:
     prompt_ids = tokenizer.encode(example["prompt"], add_special_tokens=False)
     target_ids = tokenizer.encode(example["target"], add_special_tokens=False)
@@ -235,6 +233,7 @@ def train(
     model_name: str,
     output_dir: str = "out/legal-llm-sft",
     eval_dataset: Optional[Dataset] = None,
+
     use_lora: bool = True,
     load_in_4bit: bool = False,
     max_length: int = 2048,
@@ -284,6 +283,7 @@ def train(
     if wandb is not None:
         wandb.init(project=wandb_project)
 
+
     args = TrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=per_device_train_batch_size,
@@ -302,7 +302,7 @@ def train(
         report_to=["wandb"] if wandb is not None else [],
     )
 
-    trainer = Trainer(
+   trainer = Trainer(
         model=model,
         args=args,
         train_dataset=train_ds,

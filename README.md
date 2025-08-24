@@ -138,7 +138,6 @@ window chunks.
 ## Fine-tuning models
 
 `finetune.py` offers a utility to fine-tune instruction models with either LoRA adapters or full parameter updates. Supported backbones include `mistralai/Mistral-7B-Instruct-v0.3`, `meta-llama/Meta-Llama-3-8B-Instruct`, and `Qwen2.5-7B-Instruct`.
-
 The helper loads a model and tokenizer, masks out prompt tokens with `-100` for supervised fine-tuning, and can optionally pack multiple examples into fixed-length sequences for efficiency. During training the `Trainer` computes ROUGE and BERTScore on a validation set, logs metrics to Weights & Biases (`project="legal-llm"`), and saves the best checkpoint by ROUGE-L to `out/legal-llm-sft`. LoRA uses `r=16`, `alpha=32`, and `dropout=0.05`. When `load_in_4bit=True`, the model is prepared for QLoRA training via `prepare_model_for_kbit_training`.
 
 Example usage:
