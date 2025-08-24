@@ -1,7 +1,13 @@
 import argparse
-from typing import Dict
+from typing import Dict, Optional
 
+import numpy as np
 import torch
+import evaluate
+try:  # optional logging
+    import wandb
+except Exception:  # pragma: no cover
+    wandb = None
 from datasets import Dataset
 from transformers import (
     AutoModelForCausalLM,
@@ -223,9 +229,11 @@ def build_dataset(ds: Dataset, tokenizer, max_length: int, pack: bool = False):
 
 
 def train(
-    dataset: Dataset,
+    train_dataset: Dataset,
     model_name: str,
-    output_dir: str,
+    output_dir: str = "out/legal-llm-sft",
+    eval_dataset: Optional[Dataset] = None,
+
     use_lora: bool = True,
     load_in_4bit: bool = False,
     max_length: int = 2048,
@@ -235,11 +243,46 @@ def train(
     num_train_epochs: int = 1,
     learning_rate: float = 2e-4,
     lr_scheduler_type: str = "linear",
+    wandb_project: str = "legal-llm",
 ):
     model, tokenizer = load_model_and_tokenizer(
         model_name, use_lora=use_lora, load_in_4bit=load_in_4bit
     )
-    train_ds = build_dataset(dataset, tokenizer, max_length, pack=packing)
+    train_ds = build_dataset(train_dataset, tokenizer, max_length, pack=packing)
+    eval_ds = (
+        build_dataset(eval_dataset, tokenizer, max_length, pack=packing)
+        if eval_dataset is not None
+        else None
+    )
+
+    rouge = evaluate.load("rouge")
+    bert = evaluate.load("bertscore")
+
+    def compute_metrics(eval_preds):
+        preds, labels = eval_preds
+        if isinstance(preds, tuple):  # preds may be (logits, _)
+            preds = preds[0]
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+        rouge_res = rouge.compute(
+            predictions=decoded_preds, references=decoded_labels, use_stemmer=True
+        )
+        bert_res = bert.compute(
+            predictions=decoded_preds, references=decoded_labels, lang="en"
+        )
+        metrics = {
+            "rouge1": rouge_res["rouge1"],
+            "rouge2": rouge_res["rouge2"],
+            "rougeL": rouge_res["rougeL"],
+            "bert_f1": float(np.mean(bert_res["f1"])),
+        }
+        return metrics
+
+    if wandb is not None:
+        wandb.init(project=wandb_project)
+
 
     args = TrainingArguments(
         output_dir=output_dir,
@@ -249,11 +292,23 @@ def train(
         learning_rate=learning_rate,
         lr_scheduler_type=lr_scheduler_type,
         save_strategy="epoch",
+        evaluation_strategy="epoch" if eval_ds is not None else "no",
         fp16=not load_in_4bit,
         logging_steps=10,
+        predict_with_generate=True,
+        load_best_model_at_end=eval_ds is not None,
+        metric_for_best_model="rougeL",
+        greater_is_better=True,
+        report_to=["wandb"] if wandb is not None else [],
     )
 
-    trainer = Trainer(model=model, args=args, train_dataset=train_ds)
+   trainer = Trainer(
+        model=model,
+        args=args,
+        train_dataset=train_ds,
+        eval_dataset=eval_ds,
+        compute_metrics=compute_metrics if eval_ds is not None else None,
+    )
     trainer.train()
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
@@ -263,7 +318,7 @@ def train(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune LMs with LoRA or full FT")
     parser.add_argument("--model", choices=SUPPORTED_MODELS, default=SUPPORTED_MODELS[0])
-    parser.add_argument("--output_dir", default="outputs")
+    parser.add_argument("--output_dir", default="out/legal-llm-sft")
     parser.add_argument("--use_lora", action="store_true")
     parser.add_argument("--load_in_4bit", action="store_true")
     args = parser.parse_args()

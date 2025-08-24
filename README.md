@@ -137,9 +137,8 @@ window chunks.
 
 ## Fine-tuning models
 
-`finetune.py` offers a simple utility to fine-tune instruction models with either LoRA adapters or full parameter updates. Supported backbones include `mistralai/Mistral-7B-Instruct-v0.3`, `meta-llama/Meta-Llama-3-8B-Instruct`, and `Qwen2.5-7B-Instruct`.
-
-The helper loads a model and tokenizer, masks out prompt tokens with `-100` for supervised fine-tuning, and can optionally pack multiple examples into fixed-length sequences for efficiency. LoRA uses `r=16`, `alpha=32`, and `dropout=0.05`. When `load_in_4bit=True`, the model is prepared for QLoRA training via `prepare_model_for_kbit_training`.
+`finetune.py` offers a utility to fine-tune instruction models with either LoRA adapters or full parameter updates. Supported backbones include `mistralai/Mistral-7B-Instruct-v0.3`, `meta-llama/Meta-Llama-3-8B-Instruct`, and `Qwen2.5-7B-Instruct`.
+The helper loads a model and tokenizer, masks out prompt tokens with `-100` for supervised fine-tuning, and can optionally pack multiple examples into fixed-length sequences for efficiency. During training the `Trainer` computes ROUGE and BERTScore on a validation set, logs metrics to Weights & Biases (`project="legal-llm"`), and saves the best checkpoint by ROUGE-L to `out/legal-llm-sft`. LoRA uses `r=16`, `alpha=32`, and `dropout=0.05`. When `load_in_4bit=True`, the model is prepared for QLoRA training via `prepare_model_for_kbit_training`.
 
 Example usage:
 
@@ -147,12 +146,13 @@ Example usage:
 from datasets import Dataset
 from finetune import train
 
-# df is a DataFrame with columns: doc_id, prompt, target
-hf_ds = Dataset.from_pandas(df)
+# df_train/df_val contain columns: doc_id, prompt, target
+train_ds = Dataset.from_pandas(df_train)
+val_ds = Dataset.from_pandas(df_val)
 train(
-    hf_ds,
+    train_ds,
     model_name="mistralai/Mistral-7B-Instruct-v0.3",
-    output_dir="mistral_lora",
+    eval_dataset=val_ds,
     use_lora=True,
     load_in_4bit=True,
     gradient_accumulation_steps=4,
@@ -212,3 +212,26 @@ print(result["answer"])
 print("Citations:", result["citations"])
 ```
 
+## Faithfulness and factuality evaluation
+
+`faithfulness.py` provides heuristics to check whether summaries stay grounded in
+their source documents. It performs question‑answer generation (QAG) faithfulness,
+natural language inference with `roberta-large-mnli`, and a hallucination-rate
+proxy based on retrieved contexts. Length‑controlled ROUGE and BERTScore metrics
+are also reported. The helper returns a pandas DataFrame of per‑document scores:
+
+```python
+from faithfulness import evaluate_faithfulness
+
+doc_ids = ["case-1"]
+sources = ["The court held the contract void due to fraud."]
+summaries = ["The contract was voided for fraud, ruled the court."]
+df = evaluate_faithfulness(doc_ids, sources, summaries)
+print(df)
+```
+
+Use the `--demo` flag for a minimal run:
+
+```bash
+python faithfulness.py --demo
+```
