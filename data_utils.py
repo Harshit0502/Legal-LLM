@@ -4,6 +4,7 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
+
 CONFIG = {
     "train_path": "train.csv",
     "val_path": "val.csv",
@@ -90,6 +91,7 @@ def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
 
     return text, name_map
 
+
 def _read_dataframe(path: str) -> pd.DataFrame:
     if path.endswith(".csv"):
         return pd.read_csv(path)
@@ -124,6 +126,7 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+
 def load_dataframes(
     df_train: Optional[pd.DataFrame] = None,
     df_val: Optional[pd.DataFrame] = None,
@@ -151,7 +154,6 @@ def load_dataframes(
             f"{name} cleaned samples:\n"
             f"{df[['text', 'text_clean', 'summary', 'summary_clean']].head(3)}\n"
         )
-
     return df_train, df_val, df_test
 
 
@@ -168,6 +170,7 @@ if __name__ == "__main__":
             "The issue involved Jane Roe's liability.",
             "Justice Bob Jones delivered the holding.",
         ],
+
     }
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
