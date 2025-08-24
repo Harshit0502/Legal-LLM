@@ -3,11 +3,13 @@ import re
 import unicodedata
 import hashlib
 from typing import Dict, Optional, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import spacy
 import tiktoken
+from prompts import build_prompt
 
 CONFIG = {
     "train_path": "train.csv",
@@ -334,6 +336,7 @@ def analyze_datasets(
             score = _jaccard(vocabs[s1][col], vocabs[s2][col])
             print(f"Jaccard({s1},{s2}) for {col}: {score:.3f}")
 
+
 def _extract_section(text: str, header_regex: str) -> Optional[str]:
     """Return section text following a header pattern or ``None``.
 
@@ -355,7 +358,7 @@ def build_summarization_dataset(df: pd.DataFrame) -> pd.DataFrame:
 
     out = df[["doc_id", "text_clean", "summary_clean"]].copy()
     out["prompt"] = out["text_clean"].map(
-        lambda x: f"Summarize the following text:\n{x}\nSummary:"
+        lambda x: build_prompt(x, style="summarization")
     )
     out["target"] = out["summary_clean"]
     return out[["doc_id", "prompt", "target"]]
@@ -369,10 +372,11 @@ def build_legal_qa_dataset(df: pd.DataFrame) -> pd.DataFrame:
         issue = _extract_section(row["text_clean"], "ISSUE")
         holding = _extract_section(row["text_clean"], "HOLDING|HELD")
         if issue and holding:
-            prompt = f"Question: {issue}\nAnswer:"
-            rows.append(
-                {"doc_id": row["doc_id"], "prompt": prompt, "target": holding}
+            prompt = build_prompt(
+                row["text_clean"], style="qa", question=issue
             )
+            rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": holding})
+
     return pd.DataFrame(rows)
 
 
@@ -395,16 +399,10 @@ def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
         if reasoning:
             parts.append(f"Reasoning: {reasoning}")
         if parts:
-            prompt = (
-                "Generate a headnote with sections Facts, Issue, Holding, and Reasoning "
-                f"for the following case:\n{row['text_clean']}\nHeadnote:"
-            )
-            rows.append(
-                {"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)}
-            )
+
+            prompt = build_prompt(row["text_clean"], style="headnote")
+            rows.append({"doc_id": row["doc_id"], "prompt": prompt, "target": "\n".join(parts)})
     return pd.DataFrame(rows)
-
-
 
 if __name__ == "__main__":
     sample = {

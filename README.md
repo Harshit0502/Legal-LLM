@@ -28,7 +28,6 @@ The loader verifies that `doc_id` values are unique across splits and writes the
 cleaned DataFrames to canonical Parquet files (`train.parquet`, `val.parquet`,
 `test.parquet`).
 
-
 ```python
 from data_utils import load_dataframes
 
@@ -82,3 +81,17 @@ summ_df = build_summarization_dataset(df_train)
 qa_df = build_legal_qa_dataset(df_train)
 headnote_df = build_headnote_dataset(df_train)
 ```
+
+## Prompt templates
+
+`prompts.py` exposes reusable templates with explicit `SYSTEM` and `USER` roles for a legal tone.
+Use `build_prompt(text, style)` to format case text into a prompt. Available styles are `summarization`, `headnote`, and `qa`:
+
+```python
+from prompts import build_prompt
+
+print(build_prompt("Some case text", style="headnote"))
+```
+
+The dataset helpers above automatically apply the appropriate templates when generating `prompt`/`target` pairs.
+
