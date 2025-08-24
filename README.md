@@ -13,7 +13,6 @@ The script installs required libraries, downloads the `en_core_web_sm` spaCy mod
 necessary, displays CUDA/CPU details, defines a `set_seed` helper, and sets the default
 seed to `42` for reproducibility.
 
-## Data Preprocessing
 
 ## Loading training data
 
@@ -34,5 +33,20 @@ df_train, df_val, df_test = load_dataframes(df_train, df_val, df_test)
 # Option 2: read from paths defined in CONFIG
 df_train, df_val, df_test = load_dataframes()
 print(df_train[["text", "text_clean"]].head())
+```
+
+## Dataset statistics
+
+After loading and cleaning the splits, call `analyze_datasets` to inspect length
+distributions and vocabulary overlap. The helper saves histogram plots for character
+and token lengths using tiktoken's `cl100k_base` encoder and reports percentiles
+(`p50`, `p90`, `p95`, `p99`). It also lemmatizes each split with spaCy to compute the
+Jaccard overlap of vocabularies between train/val/test.
+
+```python
+from data_utils import analyze_datasets
+
+df_train, df_val, df_test = load_dataframes()
+analyze_datasets(df_train, df_val, df_test)
 
 ```

@@ -1,8 +1,15 @@
+import os
+
 import re
 import unicodedata
 from typing import Dict, Optional, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import spacy
+import tiktoken
+
 
 
 CONFIG = {
@@ -154,7 +161,71 @@ def load_dataframes(
             f"{name} cleaned samples:\n"
             f"{df[['text', 'text_clean', 'summary', 'summary_clean']].head(3)}\n"
         )
+
     return df_train, df_val, df_test
+
+
+def analyze_datasets(
+    df_train: pd.DataFrame,
+    df_val: pd.DataFrame,
+    df_test: pd.DataFrame,
+    output_dir: str = "analysis",
+) -> None:
+    """Plot length histograms and report vocabulary overlap."""
+
+    os.makedirs(output_dir, exist_ok=True)
+    enc = tiktoken.get_encoding("cl100k_base")
+    nlp = spacy.load("en_core_web_sm", disable=["parser", "ner", "textcat"])
+
+    def _percentiles(values: np.ndarray) -> str:
+        p = np.percentile(values, [50, 90, 95, 99])
+        return "p50={:.1f}, p90={:.1f}, p95={:.1f}, p99={:.1f}".format(*p)
+
+    def _lengths(series: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
+        chars = series.str.len().to_numpy()
+        tokens = series.map(lambda x: len(enc.encode(x))).to_numpy()
+        return chars, tokens
+
+    for split, df in [("train", df_train), ("val", df_val), ("test", df_test)]:
+        for col in ["text_clean", "summary_clean"]:
+            chars, tokens = _lengths(df[col])
+            for arr, name in [(chars, "char"), (tokens, "token")]:
+                plt.figure()
+                plt.hist(arr, bins=50)
+                plt.title(f"{split} {col} {name} lengths")
+                plt.xlabel(f"{name} count")
+                plt.ylabel("frequency")
+                plt.tight_layout()
+                out = os.path.join(output_dir, f"{split}_{col}_{name}_hist.png")
+                plt.savefig(out)
+                plt.close()
+                print(f"{split} {col} {name} percentiles: {_percentiles(arr)}")
+
+    def _lemma_set(texts: pd.Series) -> set:
+        return {
+            tok.lemma_.lower()
+            for doc in nlp.pipe(texts.tolist(), batch_size=100)
+            for tok in doc
+            if tok.is_alpha
+        }
+
+    vocabs = {
+        split: {
+            col: _lemma_set(df[col])
+            for col in ["text_clean", "summary_clean"]
+        }
+        for split, df in [("train", df_train), ("val", df_val), ("test", df_test)]
+    }
+
+    def _jaccard(a: set, b: set) -> float:
+        return len(a & b) / len(a | b) if a or b else 0.0
+
+    pairs = [("train", "val"), ("train", "test"), ("val", "test")]
+    for col in ["text_clean", "summary_clean"]:
+        for s1, s2 in pairs:
+            score = _jaccard(vocabs[s1][col], vocabs[s2][col])
+            print(f"Jaccard({s1},{s2}) for {col}: {score:.3f}")
+
 
 
 if __name__ == "__main__":
@@ -175,4 +246,6 @@ if __name__ == "__main__":
     df_t = pd.DataFrame(sample)
     df_v = pd.DataFrame(sample)
     df_te = pd.DataFrame(sample)
-    load_dataframes(df_t, df_v, df_te)
+    t, v, te = load_dataframes(df_t, df_v, df_te)
+    analyze_datasets(t, v, te)
+

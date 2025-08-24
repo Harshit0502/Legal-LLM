@@ -16,6 +16,7 @@ PACKAGES = [
     "bert_score",
     "wandb",
     "pandas",
+    "matplotlib",
     "scikit-learn",
     "faiss-cpu",
     "nltk",
