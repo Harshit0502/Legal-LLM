@@ -233,7 +233,6 @@ def train(
     model_name: str,
     output_dir: str = "out/legal-llm-sft",
     eval_dataset: Optional[Dataset] = None,
-
     use_lora: bool = True,
     load_in_4bit: bool = False,
     max_length: int = 2048,
@@ -283,7 +282,6 @@ def train(
     if wandb is not None:
         wandb.init(project=wandb_project)
 
-
     args = TrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=per_device_train_batch_size,
@@ -302,7 +300,7 @@ def train(
         report_to=["wandb"] if wandb is not None else [],
     )
 
-   trainer = Trainer(
+    trainer = Trainer(
         model=model,
         args=args,
         train_dataset=train_ds,

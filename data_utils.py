@@ -2,6 +2,7 @@ import os
 import re
 import unicodedata
 import hashlib
+import json
 from typing import Dict, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,6 +20,55 @@ CONFIG = {
     "test_parquet": "test.parquet",
 }
 
+
+CASE_REGEX = re.compile(r"\b(?:Case\s+No\.?\s*)?\d{2,}[-/]\d{2,}\b")
+
+
+def redact_text(
+    text: str, allow_personal: bool = False, nlp=None
+) -> Tuple[str, Dict[str, str]]:
+    """Redact names, locations and case numbers from ``text``.
+
+    Returns the redacted text and a mapping of placeholders to originals. If
+    ``allow_personal`` is True, the text is returned unchanged with an empty
+    mapping.
+    """
+
+    if allow_personal or not isinstance(text, str) or not text.strip():
+        return text, {}
+    if nlp is None:
+        nlp = spacy.load("en_core_web_sm")
+
+    doc = nlp(text)
+    offsets = []
+    mapping: Dict[str, str] = {}
+    person_idx = 1
+    loc_idx = 1
+    for ent in doc.ents:
+        if ent.label_ == "PERSON":
+            placeholder = f"PERSON_{person_idx}"
+            person_idx += 1
+        elif ent.label_ in ("GPE", "LOC"):
+            placeholder = f"LOCATION_{loc_idx}"
+            loc_idx += 1
+        else:
+            continue
+        offsets.append((ent.start_char, ent.end_char, placeholder))
+        mapping[placeholder] = ent.text
+
+    case_idx = 1
+    for match in CASE_REGEX.finditer(text):
+        placeholder = f"CASE_{case_idx}"
+        case_idx += 1
+        offsets.append((match.start(), match.end(), placeholder))
+        mapping[placeholder] = match.group(0)
+
+    offsets.sort(key=lambda x: x[0], reverse=True)
+    redacted = text
+    for start, end, placeholder in offsets:
+        redacted = redacted[:start] + placeholder + redacted[end:]
+
+    return redacted, mapping
 
 def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
     """Return normalized text and a mapping of anonymized names.
@@ -154,13 +204,33 @@ def _save_splits_to_parquet(
         df.to_parquet(path, index=False)
         print(f"Saved {split} split to {path}")
 
-
-def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Add cleaned text and summary columns to a copy of ``df``."""
+def _clean_dataframe(
+    df: pd.DataFrame, allow_personal: bool, map_path: str
+) -> pd.DataFrame:
+    """Add cleaned/redacted text and summary columns to a copy of ``df``."""
 
     df = df.copy()
-    df["text_clean"], df["text_map"] = zip(*df["text"].map(clean_text))
-    df["summary_clean"], df["summary_map"] = zip(*df["summary"].map(clean_text))
+    df["text_clean"], _ = zip(*df["text"].map(lambda x: clean_text(x, anonymize=False)))
+    df["summary_clean"], _ = zip(
+        *df["summary"].map(lambda x: clean_text(x, anonymize=False))
+    )
+
+    if allow_personal:
+        return df
+
+    nlp = spacy.load("en_core_web_sm")
+    with open(map_path, "a") as f:
+        for i, row in df.iterrows():
+            text, t_map = redact_text(row["text_clean"], nlp=nlp)
+            summary, s_map = redact_text(row["summary_clean"], nlp=nlp)
+            df.at[i, "text_clean"] = text
+            df.at[i, "summary_clean"] = summary
+            f.write(
+                json.dumps(
+                    {"doc_id": row["doc_id"], "text": t_map, "summary": s_map}
+                )
+                + "\n"
+            )
     return df
 
 
@@ -241,6 +311,8 @@ def load_dataframes(
     df_test: Optional[pd.DataFrame] = None,
     config: Optional[Dict[str, str]] = None,
     dup_threshold: float = 0.9,
+    allow_personal: bool = False,
+    redaction_path: str = "redactions.jsonl",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[int, int]]:
     cfg = CONFIG if config is None else config
     if df_train is None:
@@ -255,9 +327,13 @@ def load_dataframes(
     _validate_dataframe(df_test, "df_test")
     _assert_disjoint_doc_ids(df_train, df_val, df_test)
 
-    df_train = _clean_dataframe(df_train)
-    df_val = _clean_dataframe(df_val)
-    df_test = _clean_dataframe(df_test)
+    if not allow_personal:
+        open(redaction_path, "w").close()
+
+    df_train = _clean_dataframe(df_train, allow_personal, redaction_path)
+    df_val = _clean_dataframe(df_val, allow_personal, redaction_path)
+    df_test = _clean_dataframe(df_test, allow_personal, redaction_path)
+
 
     df_train, dropped_map = drop_near_duplicates(
         df_train, df_val, df_test, threshold=dup_threshold

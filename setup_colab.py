@@ -25,6 +25,9 @@ PACKAGES = [
     "tiktoken",
     "unidecode",
     "spacy",
+    "fastapi",
+    "uvicorn",
+
 ]
 
 def install_packages():

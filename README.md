@@ -18,11 +18,13 @@ seed to `42` for reproducibility.
 Use `data_utils.load_dataframes` to ensure your datasets meet the expected schema. It
 accepts preloaded DataFrames or reads CSV/Parquet files from a config and prints shapes,
 null counts, and example rows while validating that `text` and `summary` are non-empty
-strings. The loader also applies a `clean_text` routine to produce `text_clean` and
-`summary_clean` columns that normalize Unicode, standardize punctuation, drop page/line
-numbers, and optionally anonymize names. Near-duplicate `text_clean` entries in `df_train`
-are removed using a SimHash similarity threshold of `0.9` to prevent leakage against
-`df_val` and `df_test`. A mapping of dropped indices to `doc_id` is returned.
+strings. The loader applies a `clean_text` routine followed by a redaction pass that uses
+spaCy NER and simple regexes to replace names, locations, and case numbers with
+placeholders unless `allow_personal=True`. Mappings from placeholders to originals are
+saved to `redactions.jsonl` for later reversal. Near-duplicate `text_clean` entries in
+`df_train` are removed using a SimHash similarity threshold of `0.9` to prevent leakage
+against `df_val` and `df_test`. A mapping of dropped indices to `doc_id` is returned.
+
 
 The loader verifies that `doc_id` values are unique across splits and writes the
 cleaned DataFrames to canonical Parquet files (`train.parquet`, `val.parquet`,
@@ -38,6 +40,8 @@ df_train, df_val, df_test, dropped = load_dataframes(df_train, df_val, df_test)
 df_train, df_val, df_test, dropped = load_dataframes()
 print("Dropped duplicates:", dropped)
 print(df_train[["text", "text_clean"]].head())
+# Disable redaction if personal data is allowed
+# df_train, df_val, df_test, dropped = load_dataframes(allow_personal=True)
 ```
 
 ## Dataset statistics
@@ -138,6 +142,7 @@ window chunks.
 ## Fine-tuning models
 
 `finetune.py` offers a utility to fine-tune instruction models with either LoRA adapters or full parameter updates. Supported backbones include `mistralai/Mistral-7B-Instruct-v0.3`, `meta-llama/Meta-Llama-3-8B-Instruct`, and `Qwen2.5-7B-Instruct`.
+
 The helper loads a model and tokenizer, masks out prompt tokens with `-100` for supervised fine-tuning, and can optionally pack multiple examples into fixed-length sequences for efficiency. During training the `Trainer` computes ROUGE and BERTScore on a validation set, logs metrics to Weights & Biases (`project="legal-llm"`), and saves the best checkpoint by ROUGE-L to `out/legal-llm-sft`. LoRA uses `r=16`, `alpha=32`, and `dropout=0.05`. When `load_in_4bit=True`, the model is prepared for QLoRA training via `prepare_model_for_kbit_training`.
 
 Example usage:
@@ -235,3 +240,23 @@ Use the `--demo` flag for a minimal run:
 ```bash
 python faithfulness.py --demo
 ```
+
+## API serving and batch inference
+
+Run the FastAPI app to expose summarization and retrieval-augmented QA endpoints:
+
+```bash
+uvicorn app:app --reload
+```
+
+- `POST /summarize` accepts `{"text": "..."}` and returns `{"summary": "...", "citations": []}`.
+- `POST /qa` accepts `{"question": "..."}` and returns an answer with a list of `doc_id:chunk_id` citations.
+
+For offline processing of the canonical test split, use `batch_infer.py`:
+
+```bash
+python batch_infer.py --model out/legal-llm-sft --output predictions.csv
+```
+
+The script loads the test DataFrame via `load_dataframes`, runs the summarization model on each `text_clean`, and writes the results to a CSV file.
+
