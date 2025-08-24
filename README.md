@@ -242,6 +242,7 @@ retriever.save("chunks.index", "chunks.parquet")
 # Load later
 # retriever.load("chunks.index", "chunks.parquet")
 
+
 pipeline = RAGPipeline(retriever)
 result = pipeline.generate("What is the holding regarding liability?", top_k=3)
 print(result["answer"])

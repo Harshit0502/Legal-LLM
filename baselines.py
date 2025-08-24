@@ -28,7 +28,6 @@ try:
 except Exception:  # pragma: no cover - bert_score may be missing
     bert_score = None  # type: ignore
 
-
 def textrank_summary(text: str, sentences: int = 3) -> str:
     """Return a TextRank summary of ``text`` using ``sentences`` sentences."""
     if PlaintextParser is None or Tokenizer is None or TextRankSummarizer is None:

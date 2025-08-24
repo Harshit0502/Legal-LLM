@@ -4,7 +4,6 @@ import unicodedata
 import hashlib
 import json
 from typing import Dict, Optional, Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -70,7 +69,6 @@ def redact_text(
         redacted = redacted[:start] + placeholder + redacted[end:]
 
     return redacted, mapping
-
 
 def clean_text(x: str, anonymize: bool = True) -> Tuple[str, Dict[str, str]]:
     """Return normalized text and a mapping of anonymized names.
@@ -175,7 +173,6 @@ def _validate_dataframe(df: pd.DataFrame, name: str) -> None:
     print(f"{name} null counts:\n{df.isna().sum()}")
     print(f"{name} examples:\n{df.head(2)}\n")
 
-
 def _assert_disjoint_doc_ids(
     df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame
 ) -> None:
@@ -207,7 +204,6 @@ def _save_splits_to_parquet(
         df.to_parquet(path, index=False)
         print(f"Saved {split} split to {path}")
 
-
 def _clean_dataframe(
     df: pd.DataFrame, allow_personal: bool, map_path: str
 ) -> pd.DataFrame:
@@ -235,7 +231,6 @@ def _clean_dataframe(
                 )
                 + "\n"
             )
-
     return df
 
 
@@ -330,7 +325,6 @@ def load_dataframes(
     _validate_dataframe(df_train, "df_train")
     _validate_dataframe(df_val, "df_val")
     _validate_dataframe(df_test, "df_test")
-
     _assert_disjoint_doc_ids(df_train, df_val, df_test)
 
     if not allow_personal:
@@ -339,7 +333,6 @@ def load_dataframes(
     df_train = _clean_dataframe(df_train, allow_personal, redaction_path)
     df_val = _clean_dataframe(df_val, allow_personal, redaction_path)
     df_test = _clean_dataframe(df_test, allow_personal, redaction_path)
-
     df_train, dropped_map = drop_near_duplicates(
         df_train, df_val, df_test, threshold=dup_threshold
     )
@@ -466,7 +459,6 @@ def build_headnote_dataset(df: pd.DataFrame) -> pd.DataFrame:
     metadata columns ``source='human'`` and ``weight=1.0`` so the result can be
     mixed with synthetic examples that carry a smaller training weight.
     """
-
     rows = []
     for _, row in df.iterrows():
         facts = _extract_section(row["text_clean"], "FACTS")
@@ -585,7 +577,6 @@ def augment_headnote_dataset(
     remaining = df[~df["doc_id"].isin(seen)]
     synth_df = generate_synthetic_headnotes(remaining, model_name, **kwargs)
     return pd.concat([human_df, synth_df], ignore_index=True)
-
 
 if __name__ == "__main__":
     sample = {

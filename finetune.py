@@ -62,7 +62,6 @@ def load_model_and_tokenizer(model_name: str,
 
     return model, tokenizer
 
-
 def tokenize_text(example: Dict, tokenizer, max_length: int) -> Dict:
     ids = tokenizer.encode(example["text_clean"], add_special_tokens=False)
     ids = ids[:max_length]
@@ -180,7 +179,6 @@ def dapt_then_sft(
         **kwargs,
     )
     return sft_dir
-
 
 def tokenize_example(example: Dict, tokenizer, max_length: int) -> Dict:
     prompt_ids = tokenizer.encode(example["prompt"], add_special_tokens=False)
@@ -312,7 +310,6 @@ def train(
         compute_metrics=compute_metrics if eval_ds is not None else None,
     )
     trainer.train()
-
     # Save final model/tokenizer/config
     os.makedirs(output_dir, exist_ok=True)
     model.save_pretrained(output_dir)
@@ -343,7 +340,6 @@ def train(
             plt.close(fig)
         except Exception:  # pragma: no cover - matplotlib may be missing
             pass
-
     return trainer
 
 
