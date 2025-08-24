@@ -75,10 +75,8 @@ class SummarizeRequest(BaseModel):  # type: ignore[misc]
     text: str
     doc_id: Optional[str] = "unknown"
 
-
 class QARequest(BaseModel):  # type: ignore[misc]
     question: str
-
 
 @app.post("/summarize")  # type: ignore[misc]
 def summarize(req: SummarizeRequest) -> Dict[str, object]:
@@ -95,7 +93,6 @@ def summarize(req: SummarizeRequest) -> Dict[str, object]:
         "policy_flags": flags,
         "disclaimer": DISCLAIMER,
     }
-
 
 @app.post("/qa")  # type: ignore[misc]
 def qa(req: QARequest) -> Dict[str, object]:
@@ -114,7 +111,6 @@ def qa(req: QARequest) -> Dict[str, object]:
         "policy_flags": flags,
         "disclaimer": DISCLAIMER,
     }
-
 
 if __name__ == "__main__":
     if FastAPI is None:

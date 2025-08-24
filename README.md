@@ -222,6 +222,7 @@ retriever.save("chunks.index", "chunks.parquet")
 # Load later
 # retriever.load("chunks.index", "chunks.parquet")
 
+
 pipeline = RAGPipeline(retriever)
 result = pipeline.generate("What is the holding regarding liability?", top_k=3)
 print(result["answer"])
@@ -230,6 +231,7 @@ print("Citations:", result["citations"])
 
 The `save` method writes the FAISS index to disk and a metadata parquet containing
 `doc_id`, `chunk_id`, and token offsets for each chunk.
+
 
 ## Faithfulness and factuality evaluation
 

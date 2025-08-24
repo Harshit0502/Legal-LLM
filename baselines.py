@@ -29,6 +29,7 @@ except Exception:  # pragma: no cover - bert_score may be missing
     bert_score = None  # type: ignore
 
 
+
 def textrank_summary(text: str, sentences: int = 3) -> str:
     """Return a TextRank summary of ``text`` using ``sentences`` sentences."""
     if PlaintextParser is None or Tokenizer is None or TextRankSummarizer is None:
@@ -139,6 +140,7 @@ def evaluate_baselines(
 if __name__ == "__main__":
     if pd is None:
         raise SystemExit("pandas is required for the baseline demo")
+
     sample = {
         "doc_id": [1, 2, 3],
         "text": [

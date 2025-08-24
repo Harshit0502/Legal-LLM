@@ -46,7 +46,6 @@ class Chunk:
     start: int
     end: int
 
-
 def _split_text(
     text: str,
     enc: "tiktoken.Encoding",
@@ -74,7 +73,6 @@ def _split_text(
     for i in range(0, len(ids), step):
         chunk_ids = ids[i : i + chunk_size]
         yield enc.decode(chunk_ids), i, i + len(chunk_ids)
-
 
 def chunk_dataframe(df: "pd.DataFrame", chunk_size: int = 1000,
                     overlap: int = 200,
@@ -142,7 +140,6 @@ class FaissRetriever:
                 continue
             results.append((self.meta[idx], float(score)))
         return results
-
     def save(self, index_path: str, meta_path: str) -> None:
         """Persist the FAISS index and chunk metadata to disk."""
         if self.index is None:
